@@ -53,6 +53,15 @@ def input_args():
         default=True,
         help='include P2PSH transactions, default 1'
     )
+    
+    parser.add_argument(
+        '--Bech32',
+        metavar='bool',
+        type=bool,
+        default=True,
+        help='include Bech32 transactions, default 1'
+    )
+    
     parser.add_argument(
         '--P2PK',
         metavar='bool',
@@ -87,6 +96,8 @@ def get_types(in_args):
         keep_types.add(0)
     if in_args.P2SH:
         keep_types.add(1)
+    if in_args.Bech32:
+        keep_types.add(28)
     if in_args.P2PK:
         keep_types |= {2, 3, 4, 5}
     return keep_types
@@ -118,6 +129,8 @@ def low_mem(in_args):
         keep_types.append(1)
     if in_args.P2PK:
         keep_types += [2, 3, 4, 5]
+    if in_args.Bech32:
+        keep_types.append(28)
 
     if in_args.keep_sqlite:
         dbfile = in_args.keep_sqlite

@@ -3,6 +3,7 @@ from re import match
 import plyvel
 from binascii import hexlify, unhexlify
 from base58 import b58encode
+import segwit_addr
 import sys
 
 # THIS functions are from bitcoin_tools and was only mildly changed.
@@ -141,6 +142,11 @@ def decode_utxo(coin, outpoint, version=0.15):
         tx_id = outpoint[2:66]
         # Finally get the transaction index by decoding the remaining bytes as a b128 VARINT
         tx_index = b128_decode(outpoint[66:])
+        
+        # Decode tx_id to big-endian
+        ba = bytearray.fromhex(tx_id)
+        ba.reverse()
+        tx_id1 = ''.join('{:02x}'.format(x) for x in ba)
 
         # Once all the outpoint data has been parsed, we can proceed with the data encoded in the coin, that is, block
         # height, whether the transaction is coinbase or not, value, script type and script.
@@ -181,7 +187,7 @@ def decode_utxo(coin, outpoint, version=0.15):
 
     # Even though there is just one output, we will identify it as outputs for backward compatibility with the previous
     # decoder.
-    return {'tx_id': tx_id, 'index': tx_index, 'coinbase': coinbase, 'outs': out, 'height': height}
+    return {'tx_id': tx_id1, 'index': tx_index, 'coinbase': coinbase, 'outs': out, 'height': height}
 
 
 def decode_utxo_v08_v014(utxo):
@@ -301,7 +307,7 @@ def decode_utxo_v08_v014(utxo):
     return {'version': version, 'coinbase': coinbase, 'outs': outs, 'height': height}
 
 
-def parse_ldb(fin_name, version=0.15, types=(0, 1)):
+def parse_ldb(fin_name, version=0.15, types=(0, 1, 28)):
     counter = 0
     if 0.08 <= version < 0.15:
         prefix = b'c'
@@ -345,6 +351,7 @@ def parse_ldb(fin_name, version=0.15, types=(0, 1)):
             # 1 --> P2SH
             # 2 - 3 --> P2PK(Compressed keys)
             # 4 - 5 --> P2PK(Uncompressed keys)
+            # 28 --> Bech32
 
             if counter % 100 == 0:
                 sys.stdout.write('\r parsed transactions: %d' % counter)
@@ -366,7 +373,14 @@ def parse_ldb(fin_name, version=0.15, types=(0, 1)):
                     continue
                 add = 'P2PK'
                 yield add, out['amount'], value['height']
+            elif out['out_type'] == 28:
+                if out['out_type'] not in types:
+                    continue
+                ba1 = bytearray.fromhex(out['data'])
+                add = segwit_addr.encode(hrp="bc", witver=0, witprog=bytearray(ba1[2:]))
+                yield add, out['amount'], value['height']
             else:
+                print(value)
                 not_decoded[0] += 1
                 not_decoded[1] += out['amount']
 
